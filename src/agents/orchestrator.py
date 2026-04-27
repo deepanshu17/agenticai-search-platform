@@ -94,11 +94,10 @@ class Orchestrator:
             # -------------------------------------------------------------------
             # Stage 2: Search for candidates
             # -------------------------------------------------------------------
-            _, search_trace = await self._search_agent.run_traced(
+            search_result, search_trace = await self._search_agent.run_traced(
                 "search_candidates",
-                {"job": job, "limit": request.filters.__class__.__name__ and 20},
+                {"job": job, "limit": 20},
             )
-            search_result = await self._search_agent.run({"job": job, "limit": 20})
             candidates = search_result["candidates"]
             traces.append(search_trace)
             logger.info("Orchestrator: %d candidates found", len(candidates))
@@ -118,23 +117,19 @@ class Orchestrator:
             # -------------------------------------------------------------------
             # Stage 3: Skills assessment
             # -------------------------------------------------------------------
-            _, skills_trace = await self._skills_agent.run_traced(
+            skills_result, skills_trace = await self._skills_agent.run_traced(
                 "evaluate_candidates",
                 {"candidates": candidates, "job": job},
             )
-            skills_result = await self._skills_agent.run({"candidates": candidates, "job": job})
             scores = skills_result["scores"]
             traces.append(skills_trace)
 
             # -------------------------------------------------------------------
             # Stage 4: Rank candidates
             # -------------------------------------------------------------------
-            _, rank_trace = await self._ranking_agent.run_traced(
+            ranking_result, rank_trace = await self._ranking_agent.run_traced(
                 "rank_candidates",
                 {"candidates": candidates, "scores": scores, "job": job},
-            )
-            ranking_result = await self._ranking_agent.run(
-                {"candidates": candidates, "scores": scores, "job": job}
             )
             ranked: list[RankedCandidate] = ranking_result["ranked_candidates"]
             market_data = ranking_result.get("market_data", {})
@@ -147,12 +142,9 @@ class Orchestrator:
             # Stage 5: Draft outreach messages (optional)
             # -------------------------------------------------------------------
             if request.include_outreach_drafts:
-                _, outreach_trace = await self._outreach_agent.run_traced(
+                outreach_result, outreach_trace = await self._outreach_agent.run_traced(
                     "draft_outreach",
                     {"ranked_candidates": ranked, "job": job, "top_k": min(5, request.top_k)},
-                )
-                outreach_result = await self._outreach_agent.run(
-                    {"ranked_candidates": ranked, "job": job, "top_k": min(5, request.top_k)}
                 )
                 ranked = outreach_result["ranked_candidates"]
                 traces.append(outreach_trace)
